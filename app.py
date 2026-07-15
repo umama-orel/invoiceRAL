@@ -31,6 +31,16 @@ st.markdown("""
 st.markdown('<div class="main-title">Radiant Alliance Limited</div>', unsafe_allow_html=True)
 st.markdown('<div style="text-align: center; color: #6B7280; margin-bottom: 30px;">Invoice & Challan Generator</div>', unsafe_allow_html=True)
 
+# --- INITIALIZE SESSION STATE MEMORY ---
+if 'advice_number' not in st.session_state:
+    st.session_state.advice_number = 1385
+
+if 'invoice_number' not in st.session_state:
+    st.session_state.invoice_number = 2183
+
+if 'product_count' not in st.session_state:
+    st.session_state.product_count = 2  
+
 # --- CUSTOMER DATABASE ---
 CUSTOMER_DB = {
     "New Customer (Type manually)": {
@@ -87,8 +97,8 @@ st.markdown('<div class="section-header">Invoice Details</div>', unsafe_allow_ht
 
 col3, col4 = st.columns(2)
 with col3:
-    advice_no = st.number_input("Advice No", value=1385, step=1)
-    invoice_no = st.number_input("Invoice No", value=2183, step=1)
+    advice_no = st.number_input("Advice No", value=st.session_state.advice_number, step=1)
+    invoice_no = st.number_input("Invoice No", value=st.session_state.invoice_number, step=1)
     rm_officer = st.text_input("RM (Sales Officer)", value="Mr. Hafiz")
     payment_mode = st.text_input("Payment Mode", value="Cash on Delivery (Factory Received)")
 with col4:
@@ -102,9 +112,6 @@ formatted_delivery_date = delivery_date_val.strftime('%d.%m.%Y')
 
 # --- DYNAMIC PRODUCTS SECTION ---
 st.markdown('<div class="section-header">Products & Items</div>', unsafe_allow_html=True)
-
-if 'product_count' not in st.session_state:
-    st.session_state.product_count = 2  
 
 col_btn1, col_btn2, _ = st.columns([1, 1, 2])
 with col_btn1:
@@ -281,18 +288,28 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 9)
     pdf.multi_cell(0, 5, f"1. {note}")
     
-    # FIX APPLIED HERE: Wrap in bytes() to prevent StreamlitAPIException
     return bytes(pdf.output())
+
+def increment_counters():
+    st.session_state.advice_number = advice_no + 1
+    st.session_state.invoice_number = invoice_no + 1
 
 if len(items_data) == 0:
     st.warning("⚠️ Please fill out at least one product row with a description.")
 else:
     pdf_bytes = generate_pdf_file()
     
+    # Clean the customer name to safely use as a filename (replace spaces with underscores)
+    safe_customer_name = customer_name.strip().replace(" ", "_") if customer_name else "Unknown_Customer"
+    
+    # Create the dynamic file name format: DA_Customername_date.pdf
+    dynamic_filename = f"DA_{safe_customer_name}_{formatted_date}.pdf"
+    
     st.download_button(
         label="⚡ Generate & Download PDF Instantly",
         data=pdf_bytes,
-        file_name=f"Invoice_{invoice_no}.pdf",
+        file_name=dynamic_filename, # This applies your custom file name rules
         mime="application/pdf",
-        use_container_width=True
+        use_container_width=True,
+        on_click=increment_counters 
     )
