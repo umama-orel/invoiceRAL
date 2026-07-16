@@ -265,4 +265,4 @@ def generate_pdf_file():
         pdf.ln()
         
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(widths
+    pdf.cell(widths)
