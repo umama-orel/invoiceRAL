@@ -163,6 +163,7 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 10)
     pdf.set_text_color(51, 51, 51)
     
+    # Left Details Block
     details_left = [
         ("Customer Name:", customer_name),
         ("Contact Person:", contact_person),
@@ -181,41 +182,47 @@ def generate_pdf_file():
     col_width = 93
     y_before = pdf.get_y()
     
+    # --- Column 1 (Metadata) ---
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(25, 6, "Advice No:", 0, 0)
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, str(advice_no), 0, 1)
+    pdf.cell(45, 6, f" {advice_no}", 0, 1)
     
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(25, 6, "Invoice No:", 0, 0)
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, str(invoice_no), 0, 1)
+    pdf.cell(45, 6, f" {invoice_no}", 0, 1)
     
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(25, 6, "RM:", 0, 0)
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, rm_officer, 0, 1)
+    pdf.cell(45, 6, f" {rm_officer}", 0, 1)
     
+    # --- Column 2 (Fixed Label Gaps Applied Here) ---
+    # Row 1: Date
     pdf.set_xy(12 + col_width, y_before)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(35, 6, "Date:", 0, 0)
+    pdf.cell(11, 6, "Date:", 0, 0) # Width matches 'Date:' length perfectly
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, formatted_date, 0, 1)
+    pdf.cell(45, 6, f" {formatted_date}", 0, 1)
     
+    # Row 2: Delivery Challan No
     pdf.set_xy(12 + col_width, y_before + 6)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(35, 6, "Delivery Challan No:", 0, 0)
+    pdf.cell(38, 6, "Delivery Challan No:", 0, 0) # Width matches label perfectly
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, challan_no, 0, 1)
+    pdf.cell(45, 6, f" {challan_no}", 0, 1)
     
+    # Row 3: Delivery Date
     pdf.set_xy(12 + col_width, y_before + 12)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(35, 6, "Delivery Date:", 0, 0)
+    pdf.cell(27, 6, "Delivery Date:", 0, 0) # Width matches 'Delivery Date:' perfectly
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, formatted_delivery_date, 0, 1)
+    pdf.cell(45, 6, f" {formatted_delivery_date}", 0, 1)
     
     pdf.ln(10)
     
+    # Table headers
     headers = ["SL", "Item In Wp", "Item Description", "Qty", "Price/Wp", "Unit Price", "Total Price"]
     widths = [10, 22, 54, 12, 22, 28, 38]
     alignments = ['C', 'C', 'L', 'C', 'R', 'R', 'R']
@@ -299,16 +306,13 @@ if len(items_data) == 0:
 else:
     pdf_bytes = generate_pdf_file()
     
-    # Clean the customer name to safely use as a filename (replace spaces with underscores)
     safe_customer_name = customer_name.strip().replace(" ", "_") if customer_name else "Unknown_Customer"
-    
-    # Create the dynamic file name format: DA_Customername_date.pdf
     dynamic_filename = f"DA_{safe_customer_name}_{formatted_date}.pdf"
     
     st.download_button(
         label="⚡ Generate & Download PDF Instantly",
         data=pdf_bytes,
-        file_name=dynamic_filename, # This applies your custom file name rules
+        file_name=dynamic_filename,
         mime="application/pdf",
         use_container_width=True,
         on_click=increment_counters 
