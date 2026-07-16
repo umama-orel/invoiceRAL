@@ -163,7 +163,7 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 10)
     pdf.set_text_color(51, 51, 51)
     
-    # Left Details Block
+    # --- Top Left Block: Customer Details ---
     details_left = [
         ("Customer Name:", customer_name),
         ("Contact Person:", contact_person),
@@ -179,10 +179,11 @@ def generate_pdf_file():
         
     pdf.ln(5)
     
+    # Save the current height position before splitting into two metadata columns
     y_before = pdf.get_y()
-    right_column_x = 130  # Shifted right, all lines start exactly here for a clean left edge
+    right_column_x = 130  # Straight left edge alignment for the right metadata column
     
-    # --- Column 1 (Left-side Metadata) ---
+    # --- Column 1: Left-side Metadata Block ---
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(19, 6, "Advice No:", 0, 0) 
     pdf.set_font('Arial', '', 10)
@@ -198,7 +199,10 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 10)
     pdf.cell(45, 6, f" {rm_officer}", 0, 1)
     
-    # --- Column 2 (Left Aligned within the Right Side) ---
+    # Save where column 1 naturally ends so we don't overlap later text structures
+    y_after_left_col = pdf.get_y()
+    
+    # --- Column 2: Right-side Metadata Block (Straight Left Edge Alignment) ---
     # Row 1: Date
     pdf.set_xy(right_column_x, y_before)
     pdf.set_font('Arial', 'B', 10)
@@ -220,7 +224,9 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 10)
     pdf.cell(45, 6, f" {formatted_delivery_date}", 0, 1)
     
-    pdf.set_xy(12, y_before + 18) 
+    # Secure tracking system alignment safety boundaries below column blocks
+    max_y = max(y_after_left_col, pdf.get_y())
+    pdf.set_xy(12, max_y)
     pdf.ln(4)
     
     # Table headers
@@ -259,62 +265,4 @@ def generate_pdf_file():
         pdf.ln()
         
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(widths[0] + widths[1] + widths[2], 8, "TOTAL", 1, 0, 'C', fill=True)
-    pdf.cell(widths[3], 8, str(total_qty), 1, 0, 'C', fill=True)
-    pdf.cell(widths[4], 8, "", 1, 0, 'C', fill=True)
-    pdf.cell(widths[5], 8, "", 1, 0, 'C', fill=True)
-    pdf.cell(widths[6], 8, f"{total_price:,.2f}", 1, 1, 'R', fill=True)
-    
-    pdf.ln(8)
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 6, f"Payment Mode: *{payment_mode}", 0, 1)
-    
-    pdf.ln(12)
-    
-    y_sig = pdf.get_y()
-    pdf.line(12, y_sig, 62, y_sig)
-    pdf.line(138, y_sig, 198, y_sig)
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(50, 6, "Prepared By", 0, 0, 'C')
-    pdf.cell(76, 6, "", 0, 0)
-    pdf.cell(60, 6, "Head of Sales & Marketing", 0, 1, 'C')
-    
-    pdf.ln(10)
-    
-    y_app = pdf.get_y()
-    pdf.line(83, y_app + 8, 123, y_app + 8)
-    pdf.cell(0, 6, "Approved By:", 0, 1, 'C')
-    
-    pdf.ln(15)
-    
-    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
-    pdf.ln(2)
-    pdf.set_font('Arial', 'B', 9)
-    pdf.cell(0, 5, "Note (If any):", 0, 1)
-    pdf.set_font('Arial', '', 9)
-    pdf.multi_cell(0, 5, f"1. {note}")
-    
-    return bytes(pdf.output())
-
-def increment_counters():
-    st.session_state.advice_number = advice_no + 1
-    st.session_state.invoice_number = invoice_no + 1
-
-if len(items_data) == 0:
-    st.warning("⚠️ Please fill out at least one product row with a description.")
-else:
-    pdf_bytes = generate_pdf_file()
-    
-    safe_customer_name = customer_name.strip().replace(" ", "_") if customer_name else "Unknown_Customer"
-    dynamic_filename = f"DA_{safe_customer_name}_{formatted_date}.pdf"
-    
-    st.download_button(
-        label="⚡ Generate & Download PDF Instantly",
-        data=pdf_bytes,
-        file_name=dynamic_filename,
-        mime="application/pdf",
-        use_container_width=True,
-        on_click=increment_counters 
-    )
+    pdf.cell(widths
