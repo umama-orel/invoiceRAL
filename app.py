@@ -180,7 +180,7 @@ def generate_pdf_file():
     pdf.ln(5)
     
     y_before = pdf.get_y()
-    right_margin_x = pdf.w - pdf.r_margin # This points exactly to the right border line (198mm)
+    right_column_x = 130  # Shifted right, all lines start exactly here for a clean left edge
     
     # --- Column 1 (Left-side Metadata) ---
     pdf.set_font('Arial', 'B', 10)
@@ -198,42 +198,29 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 10)
     pdf.cell(45, 6, f" {rm_officer}", 0, 1)
     
-    # --- Column 2 (Right-Aligned Metadata Block) ---
-    
+    # --- Column 2 (Left Aligned within the Right Side) ---
     # Row 1: Date
-    date_label = "Date:"
-    date_val_str = f" {formatted_date}"
-    total_date_width = pdf.get_string_width(date_label) + pdf.get_string_width(date_val_str)
-    
-    pdf.set_xy(right_margin_x - total_date_width, y_before)
+    pdf.set_xy(right_column_x, y_before)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(pdf.get_string_width(date_label), 6, date_label, 0, 0)
+    pdf.cell(9, 6, "Date:", 0, 0) 
     pdf.set_font('Arial', '', 10)
-    pdf.cell(pdf.get_string_width(date_val_str), 6, date_val_str, 0, 1)
+    pdf.cell(45, 6, f" {formatted_date}", 0, 1)
     
     # Row 2: Delivery Challan No
-    challan_label = "Delivery Challan No:"
-    challan_val_str = f" {challan_no}"
-    total_challan_width = pdf.get_string_width(challan_label) + pdf.get_string_width(challan_val_str)
-    
-    pdf.set_xy(right_margin_x - total_challan_width, y_before + 6)
+    pdf.set_xy(right_column_x, y_before + 6)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(pdf.get_string_width(challan_label), 6, challan_label, 0, 0)
+    pdf.cell(35, 6, "Delivery Challan No:", 0, 0) 
     pdf.set_font('Arial', '', 10)
-    pdf.cell(pdf.get_string_width(challan_val_str), 6, challan_val_str, 0, 1)
+    pdf.cell(45, 6, f" {challan_no}", 0, 1)
     
     # Row 3: Delivery Date
-    del_date_label = "Delivery Date:"
-    del_date_val_str = f" {formatted_delivery_date}"
-    total_del_date_width = pdf.get_string_width(del_date_label) + pdf.get_string_width(del_date_val_str)
-    
-    pdf.set_xy(right_margin_x - total_del_date_width, y_before + 12)
+    pdf.set_xy(right_column_x, y_before + 12)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(pdf.get_string_width(del_date_label), 6, del_date_label, 0, 0)
+    pdf.cell(24, 6, "Delivery Date:", 0, 0) 
     pdf.set_font('Arial', '', 10)
-    pdf.cell(pdf.get_string_width(del_date_val_str), 6, del_date_val_str, 0, 1)
+    pdf.cell(45, 6, f" {formatted_delivery_date}", 0, 1)
     
-    pdf.set_xy(12, y_before + 18) # Clean up track pointer location
+    pdf.set_xy(12, y_before + 18) 
     pdf.ln(4)
     
     # Table headers
