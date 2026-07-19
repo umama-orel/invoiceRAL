@@ -2,9 +2,60 @@ import streamlit as st
 from datetime import datetime
 from fpdf import FPDF
 import os
+import json
 
 # Set page configuration
-st.set_page_config(page_title="Radiant Alliance - Invoice Generator", page_icon="📄", layout="centered")
+st.set_page_config(page_title="Radiant Alliance - Permanent Invoice Generator", page_icon="📄", layout="centered")
+
+# --- PERMANENT JSON DATABASE SYSTEM ---
+DB_FILE = "customer_database.json"
+
+# Default hardcoded profiles if no database file exists yet
+DEFAULT_CUSTOMERS = {
+    "Mr. Bellal Hossain": {
+        "contact_person": "Mr. Bellal Hossain",
+        "contact_no": "01936440711",
+        "delivery_address": "Aukpara, Ashulia, Savar, Dhaka"
+    },
+    "Rahman Trading Co.": {
+        "contact_person": "Mr. Anisur Rahman",
+        "contact_no": "01711223344",
+        "delivery_address": "Mogbazar, Dhaka"
+    },
+    "Solar Tech BD": {
+        "contact_person": "Engr. Kamal",
+        "contact_no": "01822334455",
+        "delivery_address": "CEPZ, Chittagong"
+    }
+}
+
+def load_permanent_database():
+    """Loads custom profiles from the json file, or creates one with defaults if missing."""
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return DEFAULT_CUSTOMERS.copy()
+    else:
+        # Save default setup to file permanently
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_CUSTOMERS, f, indent=4, ensure_ascii=False)
+        return DEFAULT_CUSTOMERS.copy()
+
+def save_permanent_customer(name, person, phone, address):
+    """Appends a new client profile cleanly to the persistent file."""
+    current_db = load_permanent_database()
+    current_db[name.strip()] = {
+        "contact_person": person.strip(),
+        "contact_no": phone.strip(),
+        "delivery_address": address.strip()
+    }
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(current_db, f, indent=4, ensure_ascii=False)
+
+# Load database profiles dynamically on every run
+active_db = load_permanent_database()
 
 # CSS to make the app look clean and professional
 st.markdown("""
@@ -41,31 +92,6 @@ if 'invoice_number' not in st.session_state:
 if 'product_count' not in st.session_state:
     st.session_state.product_count = 2  
 
-# --- PERSISTENT DYNAMIC CUSTOMER DATABASE ---
-if 'customer_db' not in st.session_state:
-    st.session_state.customer_db = {
-        "New Customer (Type manually)": {
-            "contact_person": "",
-            "contact_no": "",
-            "delivery_address": ""
-        },
-        "Mr. Bellal Hossain": {
-            "contact_person": "Mr. Bellal Hossain",
-            "contact_no": "01936440711",
-            "delivery_address": "Aukpara, Ashulia, Savar, Dhaka"
-        },
-        "Rahman Trading Co.": {
-            "contact_person": "Mr. Anisur Rahman",
-            "contact_no": "01711223344",
-            "delivery_address": "Mogbazar, Dhaka"
-        },
-        "Solar Tech BD": {
-            "contact_person": "Engr. Kamal",
-            "contact_no": "01822334455",
-            "delivery_address": "CEPZ, Chittagong"
-        }
-    }
-
 if 'selected_profile' not in st.session_state:
     st.session_state.selected_profile = "New Customer (Type manually)"
 
@@ -82,8 +108,9 @@ if uploaded_logo is not None:
 # --- CUSTOMER DETAILS FORM ---
 st.markdown('<div class="section-header">Customer Details</div>', unsafe_allow_html=True)
 
-# Find the index of the selected profile to keep it active across reruns
-profile_list = list(st.session_state.customer_db.keys())
+# Compile options list
+profile_list = ["New Customer (Type manually)"] + sorted([k for k in active_db.keys()])
+
 try:
     current_index = profile_list.index(st.session_state.selected_profile)
 except ValueError:
@@ -100,18 +127,20 @@ selected_customer = st.selectbox(
     on_change=on_profile_change
 )
 
-# Use individual keys inside text inputs to prevent data loss on page refreshes
-if 'c_name' not in st.session_state or selected_customer != "New Customer (Type manually)":
-    st.session_state.c_name = "" if selected_customer == "New Customer (Type manually)" else selected_customer
+# Populate profile inputs smoothly 
+if selected_customer == "New Customer (Type manually)":
+    if 'c_name' not in st.session_state or st.session_state.get('last_profile') != selected_customer:
+        st.session_state.c_name = ""
+        st.session_state.c_person = ""
+        st.session_state.c_no = ""
+        st.session_state.c_address = ""
+else:
+    st.session_state.c_name = selected_customer
+    st.session_state.c_person = active_db[selected_customer]["contact_person"]
+    st.session_state.c_no = active_db[selected_customer]["contact_no"]
+    st.session_state.c_address = active_db[selected_customer]["delivery_address"]
 
-if 'c_person' not in st.session_state or selected_customer != "New Customer (Type manually)":
-    st.session_state.c_person = st.session_state.customer_db[selected_customer]["contact_person"]
-
-if 'c_no' not in st.session_state or selected_customer != "New Customer (Type manually)":
-    st.session_state.c_no = st.session_state.customer_db[selected_customer]["contact_no"]
-
-if 'c_address' not in st.session_state or selected_customer != "New Customer (Type manually)":
-    st.session_state.c_address = st.session_state.customer_db[selected_customer]["delivery_address"]
+st.session_state.last_profile = selected_customer
 
 col1, col2 = st.columns(2)
 with col1:
@@ -121,18 +150,13 @@ with col2:
     contact_no = st.text_input("Contact No", key="c_no")
     delivery_address = st.text_input("Delivery Address", key="c_address")
 
-# Dynamic Save Profile Button for New Clients
+# Permanent Storage Handler Button
 if selected_customer == "New Customer (Type manually)" and customer_name.strip() != "":
-    if st.button("➕ Save & Add to Profile List permanently for this session", use_container_width=True):
+    if st.button("💾 Permanent Save Customer Profile", use_container_width=True):
         clean_name = customer_name.strip()
-        st.session_state.customer_db[clean_name] = {
-            "contact_person": contact_person,
-            "contact_no": contact_no,
-            "delivery_address": delivery_address
-        }
-        # Change selection directly to the newly added profile so it saves completely
+        save_permanent_customer(clean_name, contact_person, contact_no, delivery_address)
         st.session_state.selected_profile = clean_name
-        st.success(f"💾 '{clean_name}' has been added to your profile list dropdown successfully!")
+        st.success(f"🎉 '{clean_name}' has been added permanently to your database file for all future sessions!")
         st.rerun()
 
 # --- INVOICE METADATA ---
@@ -341,7 +365,7 @@ def generate_pdf_file():
     
     return bytes(pdf.output())
 
-# Action handler executed automatically on download callback
+# Increments invoice numbers automatically when downloading 
 def increment_counters_callback():
     st.session_state.advice_number = advice_no + 1
     st.session_state.invoice_number = invoice_no + 1
