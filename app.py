@@ -66,6 +66,9 @@ if 'customer_db' not in st.session_state:
         }
     }
 
+if 'selected_profile' not in st.session_state:
+    st.session_state.selected_profile = "New Customer (Type manually)"
+
 # --- SIDEBAR CONFIGURATION ---
 st.sidebar.header("Company Settings")
 uploaded_logo = st.sidebar.file_uploader("Upload Company Logo (PNG/JPG)", type=["png", "jpg", "jpeg"])
@@ -79,29 +82,57 @@ if uploaded_logo is not None:
 # --- CUSTOMER DETAILS FORM ---
 st.markdown('<div class="section-header">Customer Details</div>', unsafe_allow_html=True)
 
-selected_customer = st.selectbox("Select Customer Profile:", list(st.session_state.customer_db.keys()))
+# Find the index of the selected profile to keep it active across reruns
+profile_list = list(st.session_state.customer_db.keys())
+try:
+    current_index = profile_list.index(st.session_state.selected_profile)
+except ValueError:
+    current_index = 0
 
-default_person = st.session_state.customer_db[selected_customer]["contact_person"]
-default_no = st.session_state.customer_db[selected_customer]["contact_no"]
-default_address = st.session_state.customer_db[selected_customer]["delivery_address"]
+def on_profile_change():
+    st.session_state.selected_profile = st.session_state.profile_selector
+
+selected_customer = st.selectbox(
+    "Select Customer Profile:", 
+    profile_list, 
+    index=current_index,
+    key="profile_selector",
+    on_change=on_profile_change
+)
+
+# Use individual keys inside text inputs to prevent data loss on page refreshes
+if 'c_name' not in st.session_state or selected_customer != "New Customer (Type manually)":
+    st.session_state.c_name = "" if selected_customer == "New Customer (Type manually)" else selected_customer
+
+if 'c_person' not in st.session_state or selected_customer != "New Customer (Type manually)":
+    st.session_state.c_person = st.session_state.customer_db[selected_customer]["contact_person"]
+
+if 'c_no' not in st.session_state or selected_customer != "New Customer (Type manually)":
+    st.session_state.c_no = st.session_state.customer_db[selected_customer]["contact_no"]
+
+if 'c_address' not in st.session_state or selected_customer != "New Customer (Type manually)":
+    st.session_state.c_address = st.session_state.customer_db[selected_customer]["delivery_address"]
 
 col1, col2 = st.columns(2)
 with col1:
-    customer_name = st.text_input("Customer Name", value="" if selected_customer == "New Customer (Type manually)" else selected_customer)
-    contact_person = st.text_input("Contact Person", value=default_person)
+    customer_name = st.text_input("Customer Name", key="c_name")
+    contact_person = st.text_input("Contact Person", key="c_person")
 with col2:
-    contact_no = st.text_input("Contact No", value=default_no)
-    delivery_address = st.text_input("Delivery Address", value=default_address)
+    contact_no = st.text_input("Contact No", key="c_no")
+    delivery_address = st.text_input("Delivery Address", key="c_address")
 
 # Dynamic Save Profile Button for New Clients
 if selected_customer == "New Customer (Type manually)" and customer_name.strip() != "":
-    if st.button("➕ Save & Add to Profile List", use_container_width=True):
-        st.session_state.customer_db[customer_name.strip()] = {
+    if st.button("➕ Save & Add to Profile List permanently for this session", use_container_width=True):
+        clean_name = customer_name.strip()
+        st.session_state.customer_db[clean_name] = {
             "contact_person": contact_person,
             "contact_no": contact_no,
             "delivery_address": delivery_address
         }
-        st.success(f"💾 '{customer_name.strip()}' has been saved successfully to your temporary profile dropdown list!")
+        # Change selection directly to the newly added profile so it saves completely
+        st.session_state.selected_profile = clean_name
+        st.success(f"💾 '{clean_name}' has been added to your profile list dropdown successfully!")
         st.rerun()
 
 # --- INVOICE METADATA ---
@@ -323,7 +354,6 @@ else:
     safe_customer_name = customer_name.strip().replace(" ", "_") if customer_name else "Unknown_Customer"
     dynamic_filename = f"DA_{safe_customer_name}_{formatted_date}.pdf"
     
-    # Single-click operation to execute both number increments and instant background downloads
     st.download_button(
         label="⚡ Save Counters & Download PDF Instantly",
         data=pdf_bytes,
