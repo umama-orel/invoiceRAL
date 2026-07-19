@@ -41,29 +41,30 @@ if 'invoice_number' not in st.session_state:
 if 'product_count' not in st.session_state:
     st.session_state.product_count = 2  
 
-# --- CUSTOMER DATABASE ---
-CUSTOMER_DB = {
-    "New Customer (Type manually)": {
-        "contact_person": "",
-        "contact_no": "",
-        "delivery_address": ""
-    },
-    "Mr. Bellal Hossain": {
-        "contact_person": "Mr. Bellal Hossain",
-        "contact_no": "01936440711",
-        "delivery_address": "Aukpara, Ashulia, Savar, Dhaka"
-    },
-    "Rahman Trading Co.": {
-        "contact_person": "Mr. Anisur Rahman",
-        "contact_no": "01711223344",
-        "delivery_address": "Mogbazar, Dhaka"
-    },
-    "Solar Tech BD": {
-        "contact_person": "Engr. Kamal",
-        "contact_no": "01822334455",
-        "delivery_address": "CEPZ, Chittagong"
+# --- PERSISTENT DYNAMIC CUSTOMER DATABASE ---
+if 'customer_db' not in st.session_state:
+    st.session_state.customer_db = {
+        "New Customer (Type manually)": {
+            "contact_person": "",
+            "contact_no": "",
+            "delivery_address": ""
+        },
+        "Mr. Bellal Hossain": {
+            "contact_person": "Mr. Bellal Hossain",
+            "contact_no": "01936440711",
+            "delivery_address": "Aukpara, Ashulia, Savar, Dhaka"
+        },
+        "Rahman Trading Co.": {
+            "contact_person": "Mr. Anisur Rahman",
+            "contact_no": "01711223344",
+            "delivery_address": "Mogbazar, Dhaka"
+        },
+        "Solar Tech BD": {
+            "contact_person": "Engr. Kamal",
+            "contact_no": "01822334455",
+            "delivery_address": "CEPZ, Chittagong"
+        }
     }
-}
 
 # --- SIDEBAR CONFIGURATION ---
 st.sidebar.header("Company Settings")
@@ -78,11 +79,11 @@ if uploaded_logo is not None:
 # --- CUSTOMER DETAILS FORM ---
 st.markdown('<div class="section-header">Customer Details</div>', unsafe_allow_html=True)
 
-selected_customer = st.selectbox("Select Customer Profile:", list(CUSTOMER_DB.keys()))
+selected_customer = st.selectbox("Select Customer Profile:", list(st.session_state.customer_db.keys()))
 
-default_person = CUSTOMER_DB[selected_customer]["contact_person"]
-default_no = CUSTOMER_DB[selected_customer]["contact_no"]
-default_address = CUSTOMER_DB[selected_customer]["delivery_address"]
+default_person = st.session_state.customer_db[selected_customer]["contact_person"]
+default_no = st.session_state.customer_db[selected_customer]["contact_no"]
+default_address = st.session_state.customer_db[selected_customer]["delivery_address"]
 
 col1, col2 = st.columns(2)
 with col1:
@@ -91,6 +92,17 @@ with col1:
 with col2:
     contact_no = st.text_input("Contact No", value=default_no)
     delivery_address = st.text_input("Delivery Address", value=default_address)
+
+# Dynamic Save Profile Button for New Clients
+if selected_customer == "New Customer (Type manually)" and customer_name.strip() != "":
+    if st.button("➕ Save & Add to Profile List", use_container_width=True):
+        st.session_state.customer_db[customer_name.strip()] = {
+            "contact_person": contact_person,
+            "contact_no": contact_no,
+            "delivery_address": delivery_address
+        }
+        st.success(f"💾 '{customer_name.strip()}' has been saved successfully to your temporary profile dropdown list!")
+        st.rerun()
 
 # --- INVOICE METADATA ---
 st.markdown('<div class="section-header">Invoice Details</div>', unsafe_allow_html=True)
@@ -179,9 +191,8 @@ def generate_pdf_file():
         
     pdf.ln(5)
     
-    # Save the current height position before splitting into two metadata columns
     y_before = pdf.get_y()
-    right_column_x = 130  # Straight left edge alignment for the right metadata column
+    right_column_x = 130  
     
     # --- Column 1: Left-side Metadata Block ---
     pdf.set_font('Arial', 'B', 10)
@@ -199,32 +210,27 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 10)
     pdf.cell(45, 6, f" {rm_officer}", 0, 1)
     
-    # Save where column 1 naturally ends so we don't overlap later text structures
     y_after_left_col = pdf.get_y()
     
-    # --- Column 2: Right-side Metadata Block (Straight Left Edge Alignment) ---
-    # Row 1: Date
+    # --- Column 2: Right-side Metadata Block ---
     pdf.set_xy(right_column_x, y_before)
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(9, 6, "Date:", 0, 0) 
     pdf.set_font('Arial', '', 10)
     pdf.cell(45, 6, f" {formatted_date}", 0, 1)
     
-    # Row 2: Delivery Challan No
     pdf.set_xy(right_column_x, y_before + 6)
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(35, 6, "Delivery Challan No:", 0, 0) 
     pdf.set_font('Arial', '', 10)
     pdf.cell(45, 6, f" {challan_no}", 0, 1)
     
-    # Row 3: Delivery Date
     pdf.set_xy(right_column_x, y_before + 12)
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(24, 6, "Delivery Date:", 0, 0) 
     pdf.set_font('Arial', '', 10)
     pdf.cell(45, 6, f" {formatted_delivery_date}", 0, 1)
     
-    # Secure tracking system alignment safety boundaries below column blocks
     max_y = max(y_after_left_col, pdf.get_y())
     pdf.set_xy(12, max_y)
     pdf.ln(4)
@@ -265,4 +271,64 @@ def generate_pdf_file():
         pdf.ln()
         
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(widths)
+    pdf.cell(widths[0] + widths[1] + widths[2], 8, "TOTAL", 1, 0, 'C', fill=True)
+    pdf.cell(widths[3], 8, str(total_qty), 1, 0, 'C', fill=True)
+    pdf.cell(widths[4], 8, "", 1, 0, 'C', fill=True)
+    pdf.cell(widths[5], 8, "", 1, 0, 'C', fill=True)
+    pdf.cell(widths[6], 8, f"{total_price:,.2f}", 1, 1, 'R', fill=True)
+    
+    pdf.ln(8)
+    
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(0, 6, f"Payment Mode: *{payment_mode}", 0, 1)
+    
+    pdf.ln(12)
+    
+    y_sig = pdf.get_y()
+    pdf.line(12, y_sig, 62, y_sig)
+    pdf.line(138, y_sig, 198, y_sig)
+    
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(50, 6, "Prepared By", 0, 0, 'C')
+    pdf.cell(76, 6, "", 0, 0)
+    pdf.cell(60, 6, "Head of Sales & Marketing", 0, 1, 'C')
+    
+    pdf.ln(10)
+    
+    y_app = pdf.get_y()
+    pdf.line(83, y_app + 8, 123, y_app + 8)
+    pdf.cell(0, 6, "Approved By:", 0, 1, 'C')
+    
+    pdf.ln(15)
+    
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+    pdf.ln(2)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(0, 5, "Note (If any):", 0, 1)
+    pdf.set_font('Arial', '', 9)
+    pdf.multi_cell(0, 5, f"1. {note}")
+    
+    return bytes(pdf.output())
+
+# Action handler executed automatically on download callback
+def increment_counters_callback():
+    st.session_state.advice_number = advice_no + 1
+    st.session_state.invoice_number = invoice_no + 1
+
+if len(items_data) == 0:
+    st.warning("⚠️ Please fill out at least one product row with a description.")
+else:
+    pdf_bytes = generate_pdf_file()
+    
+    safe_customer_name = customer_name.strip().replace(" ", "_") if customer_name else "Unknown_Customer"
+    dynamic_filename = f"DA_{safe_customer_name}_{formatted_date}.pdf"
+    
+    # Single-click operation to execute both number increments and instant background downloads
+    st.download_button(
+        label="⚡ Save Counters & Download PDF Instantly",
+        data=pdf_bytes,
+        file_name=dynamic_filename,
+        mime="application/pdf",
+        use_container_width=True,
+        on_click=increment_counters_callback
+    )
