@@ -10,7 +10,6 @@ st.set_page_config(page_title="Radiant Alliance - Permanent Invoice Generator", 
 # --- PERMANENT JSON DATABASE SYSTEM ---
 DB_FILE = "customer_database.json"
 
-# Default hardcoded profiles if no database file exists yet
 DEFAULT_CUSTOMERS = {
     "Mr. Bellal Hossain": {
         "contact_person": "Mr. Bellal Hossain",
@@ -38,7 +37,6 @@ def load_permanent_database():
         except:
             return DEFAULT_CUSTOMERS.copy()
     else:
-        # Save default setup to file permanently
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_CUSTOMERS, f, indent=4, ensure_ascii=False)
         return DEFAULT_CUSTOMERS.copy()
@@ -54,10 +52,9 @@ def save_permanent_customer(name, person, phone, address):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(current_db, f, indent=4, ensure_ascii=False)
 
-# Load database profiles dynamically on every run
 active_db = load_permanent_database()
 
-# CSS to make the app look clean and professional
+# CSS styling
 st.markdown("""
     <style>
     .main-title {
@@ -108,7 +105,6 @@ if uploaded_logo is not None:
 # --- CUSTOMER DETAILS FORM ---
 st.markdown('<div class="section-header">Customer Details</div>', unsafe_allow_html=True)
 
-# Compile options list
 profile_list = ["New Customer (Type manually)"] + sorted([k for k in active_db.keys()])
 
 try:
@@ -127,7 +123,6 @@ selected_customer = st.selectbox(
     on_change=on_profile_change
 )
 
-# Populate profile inputs smoothly 
 if selected_customer == "New Customer (Type manually)":
     if 'c_name' not in st.session_state or st.session_state.get('last_profile') != selected_customer:
         st.session_state.c_name = ""
@@ -150,7 +145,6 @@ with col2:
     contact_no = st.text_input("Contact No", key="c_no")
     delivery_address = st.text_input("Delivery Address", key="c_address")
 
-# Permanent Storage Handler Button
 if selected_customer == "New Customer (Type manually)" and customer_name.strip() != "":
     if st.button("💾 Permanent Save Customer Profile", use_container_width=True):
         clean_name = customer_name.strip()
@@ -212,7 +206,7 @@ for i in range(st.session_state.product_count):
 
 st.markdown("---")
 
-# --- PDF GENERATION ENGINE ---
+# --- FIXED PDF GENERATION ENGINE ---
 class PDF(FPDF):
     def header(self):
         if logo_path and os.path.exists(logo_path):
@@ -230,7 +224,7 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 10)
     pdf.set_text_color(51, 51, 51)
     
-    # --- Top Left Block: Customer Details ---
+    # --- FIXED: Top Left Block - Customer Details ---
     details_left = [
         ("Customer Name:", customer_name),
         ("Contact Person:", contact_person),
@@ -240,57 +234,62 @@ def generate_pdf_file():
     
     for label, val in details_left:
         pdf.set_font('Arial', 'B', 10)
-        pdf.cell(35, 6, label, 0, 0)
+        pdf.cell(38, 6, label, 0, 0)
         pdf.set_font('Arial', '', 10)
-        pdf.cell(0, 6, val, 0, 1)
         
-    pdf.ln(5)
+        # Use multi_cell for delivery address so long texts wrap without disappearing
+        if label == "Delivery Address:":
+            pdf.multi_cell(0, 6, val if val else "-")
+        else:
+            pdf.cell(0, 6, val if val else "-", 0, 1)
+        
+    pdf.ln(4)
     
     y_before = pdf.get_y()
-    right_column_x = 130  
+    right_column_x = 125  
     
-    # --- Column 1: Left-side Metadata Block ---
+    # --- Left Metadata Block ---
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(19, 6, "Advice No:", 0, 0) 
+    pdf.cell(22, 6, "Advice No:", 0, 0) 
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f" {advice_no}", 0, 1)
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(20, 6, "Invoice No:", 0, 0) 
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f" {invoice_no}", 0, 1)
+    pdf.cell(40, 6, f"{advice_no}", 0, 1)
     
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(8, 6, "RM:", 0, 0) 
+    pdf.cell(22, 6, "Invoice No:", 0, 0) 
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f" {rm_officer}", 0, 1)
+    pdf.cell(40, 6, f"{invoice_no}", 0, 1)
+    
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(22, 6, "RM:", 0, 0) 
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(40, 6, f"{rm_officer}", 0, 1)
     
     y_after_left_col = pdf.get_y()
     
-    # --- Column 2: Right-side Metadata Block ---
+    # --- Right Metadata Block ---
     pdf.set_xy(right_column_x, y_before)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(9, 6, "Date:", 0, 0) 
+    pdf.cell(12, 6, "Date:", 0, 0) 
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f" {formatted_date}", 0, 1)
+    pdf.cell(45, 6, f"{formatted_date}", 0, 1)
     
     pdf.set_xy(right_column_x, y_before + 6)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(35, 6, "Delivery Challan No:", 0, 0) 
+    pdf.cell(38, 6, "Delivery Challan No:", 0, 0) 
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f" {challan_no}", 0, 1)
+    pdf.cell(45, 6, f"{challan_no if challan_no else '-'}", 0, 1)
     
     pdf.set_xy(right_column_x, y_before + 12)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(24, 6, "Delivery Date:", 0, 0) 
+    pdf.cell(26, 6, "Delivery Date:", 0, 0) 
     pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f" {formatted_delivery_date}", 0, 1)
+    pdf.cell(45, 6, f"{formatted_delivery_date}", 0, 1)
     
     max_y = max(y_after_left_col, pdf.get_y())
     pdf.set_xy(12, max_y)
     pdf.ln(4)
     
-    # Table headers
+    # --- Table Headers ---
     headers = ["SL", "Item In Wp", "Item Description", "Qty", "Price/Wp", "Unit Price", "Total Price"]
     widths = [10, 22, 54, 12, 22, 28, 38]
     alignments = ['C', 'C', 'L', 'C', 'R', 'R', 'R']
@@ -335,7 +334,7 @@ def generate_pdf_file():
     pdf.ln(8)
     
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 6, f"Payment Mode: *{payment_mode}", 0, 1)
+    pdf.cell(0, 6, f"Payment Mode: {payment_mode}", 0, 1)
     
     pdf.ln(12)
     
@@ -365,7 +364,6 @@ def generate_pdf_file():
     
     return bytes(pdf.output())
 
-# Increments invoice numbers automatically when downloading 
 def increment_counters_callback():
     st.session_state.advice_number = advice_no + 1
     st.session_state.invoice_number = invoice_no + 1
