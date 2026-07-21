@@ -31,7 +31,6 @@ DEFAULT_CUSTOMERS = {
 
 # --- COUNTER MANAGEMENT FUNCTIONS ---
 def load_counters():
-    """Loads latest advice and invoice numbers from file, or sets defaults."""
     if os.path.exists(COUNTERS_FILE):
         try:
             with open(COUNTERS_FILE, "r", encoding="utf-8") as f:
@@ -41,7 +40,6 @@ def load_counters():
     return {"advice_number": 1385, "invoice_number": 2183}
 
 def save_counters(advice_no, invoice_no):
-    """Saves updated advice and invoice numbers permanently."""
     data = {
         "advice_number": advice_no,
         "invoice_number": invoice_no
@@ -50,7 +48,6 @@ def save_counters(advice_no, invoice_no):
         json.dump(data, f, indent=4)
 
 def load_permanent_database():
-    """Loads custom profiles from the json file, or creates one with defaults if missing."""
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -63,7 +60,6 @@ def load_permanent_database():
         return DEFAULT_CUSTOMERS.copy()
 
 def save_permanent_customer(name, person, phone, address):
-    """Appends a new client profile cleanly to the persistent file."""
     current_db = load_permanent_database()
     current_db[name.strip()] = {
         "contact_person": person.strip(),
@@ -194,30 +190,43 @@ with col4:
 formatted_date = date_val.strftime('%d.%m.%Y')
 formatted_delivery_date = delivery_date_val.strftime('%d.%m.%Y')
 
-# --- DYNAMIC PRODUCTS SECTION ---
+# --- DYNAMIC PRODUCTS SECTION (FIXED SESSION STATE BINDING) ---
 st.markdown('<div class="section-header">Products & Items</div>', unsafe_allow_html=True)
 
 col_btn1, col_btn2, _ = st.columns([1, 1, 2])
 with col_btn1:
     if st.button("➕ Add Row"):
         st.session_state.product_count += 1
+        st.rerun()
 with col_btn2:
     if st.button("❌ Remove Row") and st.session_state.product_count > 1:
         st.session_state.product_count -= 1
+        st.rerun()
 
 items_data = []
 
 for i in range(st.session_state.product_count):
     st.markdown(f"**Product #{i+1}**")
     p_col1, p_col2, p_col3, p_col4 = st.columns([1.5, 3, 1.5, 2])
+    
+    # Initialize state keys if they don't exist yet to prevent overwriting user entries
+    if f"wp_{i}" not in st.session_state:
+        st.session_state[f"wp_{i}"] = 50.0 if i == 0 else (20.0 if i == 1 else 0.0)
+    if f"desc_{i}" not in st.session_state:
+        st.session_state[f"desc_{i}"] = "Wp Solar PV Module" if i < 2 else ""
+    if f"qty_{i}" not in st.session_state:
+        st.session_state[f"qty_{i}"] = 2 if i == 0 else (1 if i == 1 else 0)
+    if f"rate_{i}" not in st.session_state:
+        st.session_state[f"rate_{i}"] = 27.00
+
     with p_col1:
-        wp = st.number_input("Wp", value=50.0 if i==0 else (20.0 if i==1 else 0.0), key=f"wp_{i}", step=5.0)
+        wp = st.number_input("Wp", step=5.0, key=f"wp_{i}")
     with p_col2:
-        desc = st.text_input("Description", value="Wp Solar PV Module" if i < 2 else "", key=f"desc_{i}", placeholder="e.g. Solar PV Module")
+        desc = st.text_input("Description", placeholder="e.g. Solar PV Module", key=f"desc_{i}")
     with p_col3:
-        qty = st.number_input("Qty", value=2 if i==0 else (1 if i==1 else 0), key=f"qty_{i}", step=1)
+        qty = st.number_input("Qty", step=1, key=f"qty_{i}")
     with p_col4:
-        rate = st.number_input("Price / Wp", value=27.00, key=f"rate_{i}", step=1.0)
+        rate = st.number_input("Price / Wp", step=1.0, key=f"rate_{i}")
     
     if desc.strip() != "":
         items_data.append({
@@ -387,11 +396,9 @@ def increment_counters_callback():
     next_advice = advice_no + 1
     next_invoice = invoice_no + 1
     
-    # 1. Update session state
     st.session_state.advice_number = next_advice
     st.session_state.invoice_number = next_invoice
     
-    # 2. Commit to permanent counters JSON file
     save_counters(next_advice, next_invoice)
 
 if len(items_data) == 0:
