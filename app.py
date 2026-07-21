@@ -9,6 +9,7 @@ st.set_page_config(page_title="Radiant Alliance - Permanent Invoice Generator", 
 
 # --- PERMANENT JSON DATABASE SYSTEM ---
 DB_FILE = "customer_database.json"
+COUNTERS_FILE = "counters.json"
 
 DEFAULT_CUSTOMERS = {
     "Mr. Bellal Hossain": {
@@ -27,6 +28,26 @@ DEFAULT_CUSTOMERS = {
         "delivery_address": "CEPZ, Chittagong"
     }
 }
+
+# --- COUNTER MANAGEMENT FUNCTIONS ---
+def load_counters():
+    """Loads latest advice and invoice numbers from file, or sets defaults."""
+    if os.path.exists(COUNTERS_FILE):
+        try:
+            with open(COUNTERS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    return {"advice_number": 1385, "invoice_number": 2183}
+
+def save_counters(advice_no, invoice_no):
+    """Saves updated advice and invoice numbers permanently."""
+    data = {
+        "advice_number": advice_no,
+        "invoice_number": invoice_no
+    }
+    with open(COUNTERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
 
 def load_permanent_database():
     """Loads custom profiles from the json file, or creates one with defaults if missing."""
@@ -79,12 +100,14 @@ st.markdown("""
 st.markdown('<div class="main-title">Radiant Alliance Limited</div>', unsafe_allow_html=True)
 st.markdown('<div style="text-align: center; color: #6B7280; margin-bottom: 30px;">Invoice & Challan Generator</div>', unsafe_allow_html=True)
 
-# --- INITIALIZE SESSION STATE MEMORY ---
+# --- LOAD PERMANENT COUNTERS INTO SESSION STATE ---
+saved_counters = load_counters()
+
 if 'advice_number' not in st.session_state:
-    st.session_state.advice_number = 1385
+    st.session_state.advice_number = saved_counters["advice_number"]
 
 if 'invoice_number' not in st.session_state:
-    st.session_state.invoice_number = 2183
+    st.session_state.invoice_number = saved_counters["invoice_number"]
 
 if 'product_count' not in st.session_state:
     st.session_state.product_count = 2  
@@ -206,7 +229,7 @@ for i in range(st.session_state.product_count):
 
 st.markdown("---")
 
-# --- FIXED PDF GENERATION ENGINE ---
+# --- PDF GENERATION ENGINE ---
 class PDF(FPDF):
     def header(self):
         if logo_path and os.path.exists(logo_path):
@@ -224,7 +247,6 @@ def generate_pdf_file():
     pdf.set_font('Arial', '', 10)
     pdf.set_text_color(51, 51, 51)
     
-    # --- FIXED: Top Left Block - Customer Details ---
     details_left = [
         ("Customer Name:", customer_name),
         ("Contact Person:", contact_person),
@@ -237,7 +259,6 @@ def generate_pdf_file():
         pdf.cell(38, 6, label, 0, 0)
         pdf.set_font('Arial', '', 10)
         
-        # Use multi_cell for delivery address so long texts wrap without disappearing
         if label == "Delivery Address:":
             pdf.multi_cell(0, 6, val if val else "-")
         else:
@@ -248,7 +269,6 @@ def generate_pdf_file():
     y_before = pdf.get_y()
     right_column_x = 125  
     
-    # --- Left Metadata Block ---
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(22, 6, "Advice No:", 0, 0) 
     pdf.set_font('Arial', '', 10)
@@ -266,7 +286,6 @@ def generate_pdf_file():
     
     y_after_left_col = pdf.get_y()
     
-    # --- Right Metadata Block ---
     pdf.set_xy(right_column_x, y_before)
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(12, 6, "Date:", 0, 0) 
@@ -289,7 +308,6 @@ def generate_pdf_file():
     pdf.set_xy(12, max_y)
     pdf.ln(4)
     
-    # --- Table Headers ---
     headers = ["SL", "Item In Wp", "Item Description", "Qty", "Price/Wp", "Unit Price", "Total Price"]
     widths = [10, 22, 54, 12, 22, 28, 38]
     alignments = ['C', 'C', 'L', 'C', 'R', 'R', 'R']
@@ -364,9 +382,17 @@ def generate_pdf_file():
     
     return bytes(pdf.output())
 
+# --- PERMANENT COUNTER INCREMENT CALLBACK ---
 def increment_counters_callback():
-    st.session_state.advice_number = advice_no + 1
-    st.session_state.invoice_number = invoice_no + 1
+    next_advice = advice_no + 1
+    next_invoice = invoice_no + 1
+    
+    # 1. Update session state
+    st.session_state.advice_number = next_advice
+    st.session_state.invoice_number = next_invoice
+    
+    # 2. Commit to permanent counters JSON file
+    save_counters(next_advice, next_invoice)
 
 if len(items_data) == 0:
     st.warning("⚠️ Please fill out at least one product row with a description.")
