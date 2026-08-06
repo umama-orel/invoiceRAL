@@ -47,30 +47,42 @@ def save_counters(advice_no, invoice_no):
     with open(COUNTERS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
+APPS_SCRIPT_URL = st.secrets["APPS_SCRIPT_URL"]
+
 def load_permanent_database():
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return DEFAULT_CUSTOMERS.copy()
-    else:
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_CUSTOMERS, f, indent=4, ensure_ascii=False)
-        return DEFAULT_CUSTOMERS.copy()
+    try:
+        res = requests.get(f"{APPS_SCRIPT_URL}?action=get_data")
+        data = res.json()
+        raw_cust = data.get("customers", [])
+        
+        db = {}
+        if len(raw_cust) > 1:  # Skip header row
+            for row in raw_cust[1:]:
+                if row and row[0]:  # Name exists
+                    db[str(row[0])] = {
+                        "contact_person": str(row[1]) if len(row) > 1 else "",
+                        "contact_no": str(row[2]) if len(row) > 2 else "",
+                        "delivery_address": str(row[3]) if len(row) > 3 else ""
+                    }
+        return db
+    except Exception as e:
+        st.error(f"Error reading database from Google Sheets: {e}")
+        return {}
 
 def save_permanent_customer(name, person, phone, address):
-    current_db = load_permanent_database()
-    current_db[name.strip()] = {
+    payload = {
+        "action": "add_customer",
+        "name": name.strip(),
         "contact_person": person.strip(),
         "contact_no": phone.strip(),
         "delivery_address": address.strip()
     }
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(current_db, f, indent=4, ensure_ascii=False)
+    try:
+        requests.post(APPS_SCRIPT_URL, data=json.dumps(payload))
+    except Exception as e:
+        st.error(f"Error saving customer to Google Sheets: {e}")
 
 active_db = load_permanent_database()
-
 # CSS styling
 st.markdown("""
     <style>
