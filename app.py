@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime
 from fpdf import FPDF
 import os
+import requests  # <--- Make sure this line is here!
 import json
 
 # Set page configuration
