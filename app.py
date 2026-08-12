@@ -226,7 +226,7 @@ for i in range(st.session_state.product_count):
     if f"wp_{i}" not in st.session_state:
         st.session_state[f"wp_{i}"] = 50.0 if i == 0 else (20.0 if i == 1 else 0.0)
     if f"desc_{i}" not in st.session_state:
-        st.session_state[f"desc_{i}"] = "Wp Solar PV Module" if i < 2 else ""
+        st.session_state[f"desc_{i}"] = " Solar PV Module" if i < 2 else ""
     if f"qty_{i}" not in st.session_state:
         st.session_state[f"qty_{i}"] = 2 if i == 0 else (1 if i == 1 else 0)
     if f"rate_{i}" not in st.session_state:
