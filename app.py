@@ -2,64 +2,57 @@ import streamlit as st
 from datetime import datetime
 from fpdf import FPDF
 import os
-import requests  # <--- Make sure this line is here!
+import requests
 import json
 
 # Set page configuration
 st.set_page_config(page_title="Radiant Alliance - Permanent Invoice Generator", page_icon="📄", layout="centered")
 
-# --- PERMANENT JSON DATABASE SYSTEM ---
-DB_FILE = "customer_database.json"
-COUNTERS_FILE = "counters.json"
+# --- APPS SCRIPT DATABASE ENDPOINT ---
+APPS_SCRIPT_URL = st.secrets["APPS_SCRIPT_URL"]
 
-DEFAULT_CUSTOMERS = {
-    "Mr. Bellal Hossain": {
-        "contact_person": "Mr. Bellal Hossain",
-        "contact_no": "01936440711",
-        "delivery_address": "Aukpara, Ashulia, Savar, Dhaka"
-    },
-    "Rahman Trading Co.": {
-        "contact_person": "Mr. Anisur Rahman",
-        "contact_no": "01711223344",
-        "delivery_address": "Mogbazar, Dhaka"
-    },
-    "Solar Tech BD": {
-        "contact_person": "Engr. Kamal",
-        "contact_no": "01822334455",
-        "delivery_address": "CEPZ, Chittagong"
-    }
-}
-
-# --- COUNTER MANAGEMENT FUNCTIONS ---
+# --- COUNTER MANAGEMENT FUNCTIONS (GOOGLE SHEETS INTEGRATION) ---
 def load_counters():
-    if os.path.exists(COUNTERS_FILE):
-        try:
-            with open(COUNTERS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            pass
+    try:
+        res = requests.get(f"{APPS_SCRIPT_URL}?action=get_data", headers={"Cache-Control": "no-cache"})
+        data = res.json()
+        raw_counters = data.get("counters", [])
+        
+        if len(raw_counters) > 1:  # Checks Row 2 in Google Sheet
+            row = raw_counters[1]
+            advice_val = int(float(row[1])) if len(row) > 1 and row[1] != "" else 1385
+            invoice_val = int(float(row[2])) if len(row) > 2 and row[2] != "" else 2183
+            return {"advice_number": advice_val, "invoice_number": invoice_val}
+    except Exception as e:
+        st.error(f"Error loading counters from Google Sheets: {e}")
+        
     return {"advice_number": 1385, "invoice_number": 2183}
 
 def save_counters(advice_no, invoice_no):
-    data = {
-        "advice_number": advice_no,
-        "invoice_number": invoice_no
+    payload = {
+        "action": "update_counters",
+        "advice_number": int(advice_no),
+        "invoice_number": int(invoice_no)
     }
-    with open(COUNTERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    headers = {"Content-Type": "application/json"}
+    try:
+        res = requests.post(APPS_SCRIPT_URL, data=json.dumps(payload), headers=headers)
+        if res.status_code != 200:
+            st.error(f"Failed to save counters to Google Sheets. Status code: {res.status_code}")
+    except Exception as e:
+        st.error(f"Error saving counters to Google Sheets: {e}")
 
-APPS_SCRIPT_URL = st.secrets["APPS_SCRIPT_URL"]
-
+# --- CUSTOMER DATABASE FUNCTIONS (GOOGLE SHEETS INTEGRATION) ---
 def load_permanent_database():
     try:
-        res = requests.get(f"{APPS_SCRIPT_URL}?action=get_data")
+        res = requests.get(f"{APPS_SCRIPT_URL}?action=get_data", headers={"Cache-Control": "no-cache"})
         data = res.json()
         raw_cust = data.get("customers", [])
         
         db = {}
         if len(raw_cust) > 1:  # Skip header row
             for row in raw_cust[1:]:
-                if row and row[0]:  # Name exists
+                if row and row[0]:  # Customer name exists
                     db[str(row[0])] = {
                         "contact_person": str(row[1]) if len(row) > 1 else "",
                         "contact_no": str(row[2]) if len(row) > 2 else "",
@@ -78,13 +71,16 @@ def save_permanent_customer(name, person, phone, address):
         "contact_no": phone.strip(),
         "delivery_address": address.strip()
     }
+    headers = {"Content-Type": "application/json"}
     try:
-        requests.post(APPS_SCRIPT_URL, data=json.dumps(payload))
+        requests.post(APPS_SCRIPT_URL, data=json.dumps(payload), headers=headers)
     except Exception as e:
         st.error(f"Error saving customer to Google Sheets: {e}")
 
+# Load Customer Database
 active_db = load_permanent_database()
-# CSS styling
+
+# --- CSS STYLING ---
 st.markdown("""
     <style>
     .main-title {
@@ -109,13 +105,10 @@ st.markdown("""
 st.markdown('<div class="main-title">Radiant Alliance Limited</div>', unsafe_allow_html=True)
 st.markdown('<div style="text-align: center; color: #6B7280; margin-bottom: 30px;">Invoice & Challan Generator</div>', unsafe_allow_html=True)
 
-# --- LOAD PERMANENT COUNTERS INTO SESSION STATE ---
-saved_counters = load_counters()
-
-if 'advice_number' not in st.session_state:
+# --- LOAD PERMANENT COUNTERS FROM GOOGLE SHEETS INTO SESSION STATE ---
+if 'advice_number' not in st.session_state or 'invoice_number' not in st.session_state:
+    saved_counters = load_counters()
     st.session_state.advice_number = saved_counters["advice_number"]
-
-if 'invoice_number' not in st.session_state:
     st.session_state.invoice_number = saved_counters["invoice_number"]
 
 if 'product_count' not in st.session_state:
@@ -203,7 +196,7 @@ with col4:
 formatted_date = date_val.strftime('%d.%m.%Y')
 formatted_delivery_date = delivery_date_val.strftime('%d.%m.%Y')
 
-# --- DYNAMIC PRODUCTS SECTION (FIXED SESSION STATE BINDING) ---
+# --- DYNAMIC PRODUCTS SECTION ---
 st.markdown('<div class="section-header">Products & Items</div>', unsafe_allow_html=True)
 
 col_btn1, col_btn2, _ = st.columns([1, 1, 2])
@@ -222,7 +215,6 @@ for i in range(st.session_state.product_count):
     st.markdown(f"**Product #{i+1}**")
     p_col1, p_col2, p_col3, p_col4 = st.columns([1.5, 3, 1.5, 2])
     
-    # Initialize state keys if they don't exist yet to prevent overwriting user entries
     if f"wp_{i}" not in st.session_state:
         st.session_state[f"wp_{i}"] = 50.0 if i == 0 else (20.0 if i == 1 else 0.0)
     if f"desc_{i}" not in st.session_state:
@@ -391,7 +383,7 @@ def generate_pdf_file():
     
     y_app = pdf.get_y()
     pdf.line(83, y_app + 8, 123, y_app + 8)
-    pdf.cell(0, 6, "Approved By:", 0, 1, 'C')
+    pdf.cell(0, 6, "Approved By:", 0, 1)
     
     pdf.ln(15)
     
@@ -409,10 +401,12 @@ def increment_counters_callback():
     next_advice = advice_no + 1
     next_invoice = invoice_no + 1
     
+    # Save directly to Google Sheets via Apps Script
+    save_counters(next_advice, next_invoice)
+    
+    # Update local session state for current browser view
     st.session_state.advice_number = next_advice
     st.session_state.invoice_number = next_invoice
-    
-    save_counters(next_advice, next_invoice)
 
 if len(items_data) == 0:
     st.warning("⚠️ Please fill out at least one product row with a description.")
