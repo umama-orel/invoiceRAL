@@ -3,7 +3,7 @@ from datetime import datetime
 from fpdf import FPDF
 import os
 import requests
-import json
+import json 
 
 # Set page configuration
 st.set_page_config(page_title="Radiant Alliance - Permanent Invoice Generator", page_icon="📄", layout="centered")
