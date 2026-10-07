@@ -1,87 +1,115 @@
-import streamlit as st
-from datetime import datetime
-from fpdf import FPDF
+import json
 import os
+from datetime import datetime
+
 import requests
-import json 
- 
+import streamlit as st
+from fpdf import FPDF
+
 # Set page configuration
-st.set_page_config(page_title="Radiant Alliance - Permanent Invoice Generator", page_icon="📄", layout="centered")
+st.set_page_config(
+    page_title="Radiant Alliance - Permanent Invoice Generator",
+    page_icon="📄",
+    layout="centered",
+)
 
 # --- APPS SCRIPT DATABASE ENDPOINT ---
 APPS_SCRIPT_URL = st.secrets["APPS_SCRIPT_URL"]
 
-# --- COUNTER MANAGEMENT FUNCTIONS (GOOGLE SHEETS INTEGRATION) ---
+
+# --- COUNTER MANAGEMENT FUNCTIONS ---
 def load_counters():
-    try:
-        res = requests.get(f"{APPS_SCRIPT_URL}?action=get_data", headers={"Cache-Control": "no-cache"})
-        data = res.json()
-        raw_counters = data.get("counters", [])
-        
-        if len(raw_counters) > 1:  # Checks Row 2 in Google Sheet
-            row = raw_counters[1]
-            advice_val = int(float(row[1])) if len(row) > 1 and row[1] != "" else 1385
-            invoice_val = int(float(row[2])) if len(row) > 2 and row[2] != "" else 2183
-            return {"advice_number": advice_val, "invoice_number": invoice_val}
-    except Exception as e:
-        st.error(f"Error loading counters from Google Sheets: {e}")
-        
-    return {"advice_number": 1385, "invoice_number": 2183}
+  try:
+    res = requests.get(
+        f"{APPS_SCRIPT_URL}?action=get_data", headers={"Cache-Control": "no-cache"}
+    )
+    data = res.json()
+    raw_counters = data.get("counters", [])
 
-def save_counters(advice_no, invoice_no):
-    payload = {
-        "action": "update_counters",
-        "advice_number": int(advice_no),
-        "invoice_number": int(invoice_no)
-    }
-    headers = {"Content-Type": "application/json"}
-    try:
-        res = requests.post(APPS_SCRIPT_URL, data=json.dumps(payload), headers=headers)
-        if res.status_code != 200:
-            st.error(f"Failed to save counters to Google Sheets. Status code: {res.status_code}")
-    except Exception as e:
-        st.error(f"Error saving counters to Google Sheets: {e}")
+    if len(raw_counters) > 1:  # Checks Row 2 in Google Sheet
+      row = raw_counters[1]
+      advice_val = (
+          int(float(row[1])) if len(row) > 1 and row[1] != "" else 1385
+      )
+      invoice_val = (
+          int(float(row[2])) if len(row) > 2 and row[2] != "" else 2183
+      )
+      return {"advice_number": advice_val, "invoice_number": invoice_val}
+  except Exception as e:
+    st.error(f"Error loading counters from Google Sheets: {e}")
 
-# --- CUSTOMER DATABASE FUNCTIONS (GOOGLE SHEETS INTEGRATION) ---
+  return {"advice_number": 1385, "invoice_number": 2183}
+
+
+def save_counters(advice_no, invoice_no, sales_data=None):
+  payload = {
+      "action": "update_counters",
+      "advice_number": int(advice_no),
+      "invoice_number": int(invoice_no),
+  }
+
+  # Attach sales statement details if available
+  if sales_data:
+    payload.update(sales_data)
+
+  headers = {"Content-Type": "application/json"}
+  try:
+    res = requests.post(
+        APPS_SCRIPT_URL, data=json.dumps(payload), headers=headers
+    )
+    if res.status_code != 200:
+      st.error(
+          f"Failed to update Google Sheets. Status code: {res.status_code}"
+      )
+  except Exception as e:
+    st.error(f"Error saving to Google Sheets: {e}")
+
+
+# --- CUSTOMER DATABASE FUNCTIONS ---
 def load_permanent_database():
-    try:
-        res = requests.get(f"{APPS_SCRIPT_URL}?action=get_data", headers={"Cache-Control": "no-cache"})
-        data = res.json()
-        raw_cust = data.get("customers", [])
-        
-        db = {}
-        if len(raw_cust) > 1:  # Skip header row
-            for row in raw_cust[1:]:
-                if row and row[0]:  # Customer name exists
-                    db[str(row[0])] = {
-                        "contact_person": str(row[1]) if len(row) > 1 else "",
-                        "contact_no": str(row[2]) if len(row) > 2 else "",
-                        "delivery_address": str(row[3]) if len(row) > 3 else ""
-                    }
-        return db
-    except Exception as e:
-        st.error(f"Error reading database from Google Sheets: {e}")
-        return {}
+  try:
+    res = requests.get(
+        f"{APPS_SCRIPT_URL}?action=get_data", headers={"Cache-Control": "no-cache"}
+    )
+    data = res.json()
+    raw_cust = data.get("customers", [])
+
+    db = {}
+    if len(raw_cust) > 1:  # Skip header row
+      for row in raw_cust[1:]:
+        if row and row[0]:  # Customer name exists
+          db[str(row[0])] = {
+              "contact_person": str(row[1]) if len(row) > 1 else "",
+              "contact_no": str(row[2]) if len(row) > 2 else "",
+              "delivery_address": str(row[3]) if len(row) > 3 else "",
+          }
+    return db
+  except Exception as e:
+    st.error(f"Error reading database from Google Sheets: {e}")
+    return {}
+
 
 def save_permanent_customer(name, person, phone, address):
-    payload = {
-        "action": "add_customer",
-        "name": name.strip(),
-        "contact_person": person.strip(),
-        "contact_no": phone.strip(),
-        "delivery_address": address.strip()
-    }
-    headers = {"Content-Type": "application/json"}
-    try:
-        requests.post(APPS_SCRIPT_URL, data=json.dumps(payload), headers=headers)
-    except Exception as e:
-        st.error(f"Error saving customer to Google Sheets: {e}")
+  payload = {
+      "action": "add_customer",
+      "name": name.strip(),
+      "contact_person": person.strip(),
+      "contact_no": phone.strip(),
+      "delivery_address": address.strip(),
+  }
+  headers = {"Content-Type": "application/json"}
+  try:
+    requests.post(APPS_SCRIPT_URL, data=json.dumps(payload), headers=headers)
+  except Exception as e:
+    st.error(f"Error saving customer to Google Sheets: {e}")
+
 
 # Load Customer Database
 active_db = load_permanent_database()
 
 # --- CSS STYLING ---
-st.markdown("""
+st.markdown(
+    """
     <style>
     .main-title {
         font-size: 28px;
@@ -100,327 +128,410 @@ st.markdown("""
         padding-bottom: 5px;
     }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-st.markdown('<div class="main-title">Radiant Alliance Limited</div>', unsafe_allow_html=True)
-st.markdown('<div style="text-align: center; color: #6B7280; margin-bottom: 30px;">Invoice & Challan Generator</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="main-title">Radiant Alliance Limited</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<div style="text-align: center; color: #6B7280; margin-bottom:'
+    ' 30px;">Invoice & Challan Generator</div>',
+    unsafe_allow_html=True,
+)
 
 # --- LOAD PERMANENT COUNTERS FROM GOOGLE SHEETS INTO SESSION STATE ---
-if 'advice_number' not in st.session_state or 'invoice_number' not in st.session_state:
-    saved_counters = load_counters()
-    st.session_state.advice_number = saved_counters["advice_number"]
-    st.session_state.invoice_number = saved_counters["invoice_number"]
+if (
+    "advice_number" not in st.session_state
+    or "invoice_number" not in st.session_state
+):
+  saved_counters = load_counters()
+  st.session_state.advice_number = saved_counters["advice_number"]
+  st.session_state.invoice_number = saved_counters["invoice_number"]
 
-if 'product_count' not in st.session_state:
-    st.session_state.product_count = 2  
+if "product_count" not in st.session_state:
+  st.session_state.product_count = 2
 
-if 'selected_profile' not in st.session_state:
-    st.session_state.selected_profile = "New Customer (Type manually)"
+if "selected_profile" not in st.session_state:
+  st.session_state.selected_profile = "New Customer (Type manually)"
 
 # --- SIDEBAR CONFIGURATION ---
 st.sidebar.header("Company Settings")
-uploaded_logo = st.sidebar.file_uploader("Upload Company Logo (PNG/JPG)", type=["png", "jpg", "jpeg"])
+uploaded_logo = st.sidebar.file_uploader(
+    "Upload Company Logo (PNG/JPG)", type=["png", "jpg", "jpeg"]
+)
 logo_path = "ral.jpg" if os.path.exists("ral.jpg") else None
 
 if uploaded_logo is not None:
-    with open("temp_logo.jpg", "wb") as f:
-        f.write(uploaded_logo.getbuffer())
-    logo_path = "temp_logo.jpg"
+  with open("temp_logo.jpg", "wb") as f:
+    f.write(uploaded_logo.getbuffer())
+  logo_path = "temp_logo.jpg"
 
 # --- CUSTOMER DETAILS FORM ---
-st.markdown('<div class="section-header">Customer Details</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="section-header">Customer Details</div>', unsafe_allow_html=True
+)
 
-profile_list = ["New Customer (Type manually)"] + sorted([k for k in active_db.keys()])
+profile_list = ["New Customer (Type manually)"] + sorted(
+    [k for k in active_db.keys()]
+)
 
 try:
-    current_index = profile_list.index(st.session_state.selected_profile)
+  current_index = profile_list.index(st.session_state.selected_profile)
 except ValueError:
-    current_index = 0
+  current_index = 0
+
 
 def on_profile_change():
-    st.session_state.selected_profile = st.session_state.profile_selector
+  st.session_state.selected_profile = st.session_state.profile_selector
+
 
 selected_customer = st.selectbox(
-    "Select Customer Profile:", 
-    profile_list, 
+    "Select Customer Profile:",
+    profile_list,
     index=current_index,
     key="profile_selector",
-    on_change=on_profile_change
+    on_change=on_profile_change,
 )
 
 if selected_customer == "New Customer (Type manually)":
-    if 'c_name' not in st.session_state or st.session_state.get('last_profile') != selected_customer:
-        st.session_state.c_name = ""
-        st.session_state.c_person = ""
-        st.session_state.c_no = ""
-        st.session_state.c_address = ""
+  if (
+      "c_name" not in st.session_state
+      or st.session_state.get("last_profile") != selected_customer
+  ):
+    st.session_state.c_name = ""
+    st.session_state.c_person = ""
+    st.session_state.c_no = ""
+    st.session_state.c_address = ""
 else:
-    st.session_state.c_name = selected_customer
-    st.session_state.c_person = active_db[selected_customer]["contact_person"]
-    st.session_state.c_no = active_db[selected_customer]["contact_no"]
-    st.session_state.c_address = active_db[selected_customer]["delivery_address"]
+  st.session_state.c_name = selected_customer
+  st.session_state.c_person = active_db[selected_customer]["contact_person"]
+  st.session_state.c_no = active_db[selected_customer]["contact_no"]
+  st.session_state.c_address = active_db[selected_customer]["delivery_address"]
 
 st.session_state.last_profile = selected_customer
 
 col1, col2 = st.columns(2)
 with col1:
-    customer_name = st.text_input("Customer Name", key="c_name")
-    contact_person = st.text_input("Contact Person", key="c_person")
+  customer_name = st.text_input("Customer Name", key="c_name")
+  contact_person = st.text_input("Contact Person", key="c_person")
 with col2:
-    contact_no = st.text_input("Contact No", key="c_no")
-    delivery_address = st.text_input("Delivery Address", key="c_address")
+  contact_no = st.text_input("Contact No", key="c_no")
+  delivery_address = st.text_input("Delivery Address", key="c_address")
 
 if selected_customer == "New Customer (Type manually)" and customer_name.strip() != "":
-    if st.button("💾 Permanent Save Customer Profile", use_container_width=True):
-        clean_name = customer_name.strip()
-        save_permanent_customer(clean_name, contact_person, contact_no, delivery_address)
-        st.session_state.selected_profile = clean_name
-        st.success(f"🎉 '{clean_name}' has been added permanently to your database file for all future sessions!")
-        st.rerun()
+  if st.button("💾 Permanent Save Customer Profile", use_container_width=True):
+    clean_name = customer_name.strip()
+    save_permanent_customer(
+        clean_name, contact_person, contact_no, delivery_address
+    )
+    st.session_state.selected_profile = clean_name
+    st.success(
+        f"🎉 '{clean_name}' has been added permanently to your database file"
+        " for all future sessions!"
+    )
+    st.rerun()
 
 # --- INVOICE METADATA ---
-st.markdown('<div class="section-header">Invoice Details</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="section-header">Invoice Details</div>', unsafe_allow_html=True
+)
 
 col3, col4 = st.columns(2)
 with col3:
-    advice_no = st.number_input("Advice No", value=st.session_state.advice_number, step=1)
-    invoice_no = st.number_input("Invoice No", value=st.session_state.invoice_number, step=1)
-    rm_officer = st.text_input("RM (Sales Officer)", value="Mr. Hafiz")
-    payment_mode = st.text_input("Payment Mode", value="Cash on Delivery (Factory Received)")
+  advice_no = st.number_input(
+      "Advice No", value=st.session_state.advice_number, step=1
+  )
+  invoice_no = st.number_input(
+      "Invoice No", value=st.session_state.invoice_number, step=1
+  )
+  rm_officer = st.text_input("RM (Sales Officer)", value="Mr. Hafiz")
+  payment_mode = st.text_input(
+      "Payment Mode", value="Cash on Delivery (Factory Received)"
+  )
 with col4:
-    date_val = st.date_input("Date", value=datetime.today())
-    challan_no = st.text_input("Delivery Challan No", value="")
-    delivery_date_val = st.date_input("Delivery Date", value=datetime.today())
-    note = st.text_area("Note (If any)", value="Please call and confirm with Sales Manager before releasing delivery", height=68)
+  date_val = st.date_input("Date", value=datetime.today())
+  challan_no = st.text_input("Delivery Challan No", value="")
+  delivery_date_val = st.date_input("Delivery Date", value=datetime.today())
+  note = st.text_area(
+      "Note (If any)",
+      value=(
+          "Please call and confirm with Sales Manager before releasing delivery"
+      ),
+      height=68,
+  )
 
-formatted_date = date_val.strftime('%d.%m.%Y')
-formatted_delivery_date = delivery_date_val.strftime('%d.%m.%Y')
+formatted_date = date_val.strftime("%d.%m.%Y")
+formatted_delivery_date = delivery_date_val.strftime("%d.%m.%Y")
 
 # --- DYNAMIC PRODUCTS SECTION ---
-st.markdown('<div class="section-header">Products & Items</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="section-header">Products & Items</div>', unsafe_allow_html=True
+)
 
 col_btn1, col_btn2, _ = st.columns([1, 1, 2])
 with col_btn1:
-    if st.button("➕ Add Row"):
-        st.session_state.product_count += 1
-        st.rerun()
+  if st.button("➕ Add Row"):
+    st.session_state.product_count += 1
+    st.rerun()
 with col_btn2:
-    if st.button("❌ Remove Row") and st.session_state.product_count > 1:
-        st.session_state.product_count -= 1
-        st.rerun()
+  if st.button("❌ Remove Row") and st.session_state.product_count > 1:
+    st.session_state.product_count -= 1
+    st.rerun()
 
 items_data = []
 
 for i in range(st.session_state.product_count):
-    st.markdown(f"**Product #{i+1}**")
-    p_col1, p_col2, p_col3, p_col4 = st.columns([1.5, 3, 1.5, 2])
-    
-    if f"wp_{i}" not in st.session_state:
-        st.session_state[f"wp_{i}"] = 50.0 if i == 0 else (20.0 if i == 1 else 0.0)
-    if f"desc_{i}" not in st.session_state:
-        st.session_state[f"desc_{i}"] = " Solar PV Module" if i < 2 else ""
-    if f"qty_{i}" not in st.session_state:
-        st.session_state[f"qty_{i}"] = 2 if i == 0 else (1 if i == 1 else 0)
-    if f"rate_{i}" not in st.session_state:
-        st.session_state[f"rate_{i}"] = 27.00
+  st.markdown(f"**Product #{i+1}**")
+  p_col1, p_col2, p_col3, p_col4 = st.columns([1.5, 3, 1.5, 2])
 
-    with p_col1:
-        wp = st.number_input("Wp", step=5.0, key=f"wp_{i}")
-    with p_col2:
-        desc = st.text_input("Description", placeholder="e.g. Solar PV Module", key=f"desc_{i}")
-    with p_col3:
-        qty = st.number_input("Qty", step=1, key=f"qty_{i}")
-    with p_col4:
-        rate = st.number_input("Price / Wp", step=1.0, key=f"rate_{i}")
-    
-    if desc.strip() != "":
-        items_data.append({
-            "wp": wp,
-            "desc": desc,
-            "qty": qty,
-            "rate": rate
-        })
+  if f"wp_{i}" not in st.session_state:
+    st.session_state[f"wp_{i}"] = 50.0 if i == 0 else (20.0 if i == 1 else 0.0)
+  if f"desc_{i}" not in st.session_state:
+    st.session_state[f"desc_{i}"] = " Solar PV Module" if i < 2 else ""
+  if f"qty_{i}" not in st.session_state:
+    st.session_state[f"qty_{i}"] = 2 if i == 0 else (1 if i == 1 else 0)
+  if f"rate_{i}" not in st.session_state:
+    st.session_state[f"rate_{i}"] = 27.00
+
+  with p_col1:
+    wp = st.number_input("Wp", step=5.0, key=f"wp_{i}")
+  with p_col2:
+    desc = st.text_input(
+        "Description", placeholder="e.g. Solar PV Module", key=f"desc_{i}"
+    )
+  with p_col3:
+    qty = st.number_input("Qty", step=1, key=f"qty_{i}")
+  with p_col4:
+    rate = st.number_input("Price / Wp", step=1.0, key=f"rate_{i}")
+
+  if desc.strip() != "":
+    items_data.append({"wp": wp, "desc": desc, "qty": qty, "rate": rate})
 
 st.markdown("---")
 
+
 # --- PDF GENERATION ENGINE ---
 class PDF(FPDF):
-    def header(self):
-        if logo_path and os.path.exists(logo_path):
-            self.image(logo_path, x=12, y=12, w=186)
-            self.set_y(50)  
-        else:
-            self.set_font('Arial', 'B', 16)
-            self.cell(0, 10, 'RADIANT ALLIANCE LIMITED', ln=True, align='C')
-            self.ln(10)
+
+  def header(self):
+    if logo_path and os.path.exists(logo_path):
+      self.image(logo_path, x=12, y=12, w=186)
+      self.set_y(50)
+    else:
+      self.set_font("Arial", "B", 16)
+      self.cell(0, 10, "RADIANT ALLIANCE LIMITED", ln=True, align="C")
+      self.ln(10)
+
 
 def generate_pdf_file():
-    pdf = PDF()
-    pdf.set_margins(12, 15, 12)
-    pdf.add_page()
-    pdf.set_font('Arial', '', 10)
-    pdf.set_text_color(51, 51, 51)
-    
-    details_left = [
-        ("Customer Name:", customer_name),
-        ("Contact Person:", contact_person),
-        ("Contact No:", contact_no),
-        ("Delivery Address:", delivery_address)
-    ]
-    
-    for label, val in details_left:
-        pdf.set_font('Arial', 'B', 10)
-        pdf.cell(38, 6, label, 0, 0)
-        pdf.set_font('Arial', '', 10)
-        
-        if label == "Delivery Address:":
-            pdf.multi_cell(0, 6, val if val else "-")
-        else:
-            pdf.cell(0, 6, val if val else "-", 0, 1)
-        
-    pdf.ln(4)
-    
-    y_before = pdf.get_y()
-    right_column_x = 125  
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(22, 6, "Advice No:", 0, 0) 
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(40, 6, f"{advice_no}", 0, 1)
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(22, 6, "Invoice No:", 0, 0) 
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(40, 6, f"{invoice_no}", 0, 1)
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(22, 6, "RM:", 0, 0) 
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(40, 6, f"{rm_officer}", 0, 1)
-    
-    y_after_left_col = pdf.get_y()
-    
-    pdf.set_xy(right_column_x, y_before)
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(12, 6, "Date:", 0, 0) 
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f"{formatted_date}", 0, 1)
-    
-    pdf.set_xy(right_column_x, y_before + 6)
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(38, 6, "Delivery Challan No:", 0, 0) 
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f"{challan_no if challan_no else '-'}", 0, 1)
-    
-    pdf.set_xy(right_column_x, y_before + 12)
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(26, 6, "Delivery Date:", 0, 0) 
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(45, 6, f"{formatted_delivery_date}", 0, 1)
-    
-    max_y = max(y_after_left_col, pdf.get_y())
-    pdf.set_xy(12, max_y)
-    pdf.ln(4)
-    
-    headers = ["SL", "Item In Wp", "Item Description", "Qty", "Price/Wp", "Unit Price", "Total Price"]
-    widths = [10, 22, 54, 12, 22, 28, 38]
-    alignments = ['C', 'C', 'L', 'C', 'R', 'R', 'R']
-    
-    pdf.set_fill_color(242, 242, 242)
-    pdf.set_font('Arial', 'B', 9)
-    for h, w, align in zip(headers, widths, alignments):
-        pdf.cell(w, 8, h, 1, 0, align, fill=True)
-    pdf.ln()
-    
-    pdf.set_font('Arial', '', 9)
-    total_qty = 0
-    total_price = 0.0
-    
-    for idx, item in enumerate(items_data, 1):
-        unit_price = item["wp"] * item["rate"]
-        row_total = item["qty"] * unit_price
-        total_qty += item["qty"]
-        total_price += row_total
-        
-        row_data = [
-            str(idx),
-            f"{item['wp']:g}",
-            item["desc"],
-            str(item["qty"]),
-            f"{item['rate']:,.2f}",
-            f"{unit_price:,.2f}",
-            f"{row_total:,.2f}"
-        ]
-        
-        for val, w, align in zip(row_data, widths, alignments):
-            pdf.cell(w, 8, val, 1, 0, align)
-        pdf.ln()
-        
-    pdf.set_font('Arial', 'B', 9)
-    pdf.cell(widths[0] + widths[1] + widths[2], 8, "TOTAL", 1, 0, 'C', fill=True)
-    pdf.cell(widths[3], 8, str(total_qty), 1, 0, 'C', fill=True)
-    pdf.cell(widths[4], 8, "", 1, 0, 'C', fill=True)
-    pdf.cell(widths[5], 8, "", 1, 0, 'C', fill=True)
-    pdf.cell(widths[6], 8, f"{total_price:,.2f}", 1, 1, 'R', fill=True)
-    
-    pdf.ln(8)
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 6, f"Payment Mode: {payment_mode}", 0, 1)
-    
-    pdf.ln(12)
-    
-    y_sig = pdf.get_y()
-    pdf.line(12, y_sig, 62, y_sig)
-    pdf.line(138, y_sig, 198, y_sig)
-    
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(50, 6, "Prepared By", 0, 0, 'C')
-    pdf.cell(76, 6, "", 0, 0)
-    pdf.cell(60, 6, "Head of Sales & Marketing", 0, 1, 'C')
-    
-    pdf.ln(10)
-    
-    y_app = pdf.get_y()
-    pdf.line(83, y_app + 8, 123, y_app + 8)
-    pdf.cell(0, 6, "Approved By:", 0, 1)
-    
-    pdf.ln(15)
-    
-    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
-    pdf.ln(2)
-    pdf.set_font('Arial', 'B', 9)
-    pdf.cell(0, 5, "Note (If any):", 0, 1)
-    pdf.set_font('Arial', '', 9)
-    pdf.multi_cell(0, 5, f"1. {note}")
-    
-    return bytes(pdf.output())
+  pdf = PDF()
+  pdf.set_margins(12, 15, 12)
+  pdf.add_page()
+  pdf.set_font("Arial", "", 10)
+  pdf.set_text_color(51, 51, 51)
 
-# --- PERMANENT COUNTER INCREMENT CALLBACK ---
+  details_left = [
+      ("Customer Name:", customer_name),
+      ("Contact Person:", contact_person),
+      ("Contact No:", contact_no),
+      ("Delivery Address:", delivery_address),
+  ]
+
+  for label, val in details_left:
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(38, 6, label, 0, 0)
+    pdf.set_font("Arial", "", 10)
+
+    if label == "Delivery Address:":
+      pdf.multi_cell(0, 6, val if val else "-")
+    else:
+      pdf.cell(0, 6, val if val else "-", 0, 1)
+
+  pdf.ln(4)
+
+  y_before = pdf.get_y()
+  right_column_x = 125
+
+  pdf.set_font("Arial", "B", 10)
+  pdf.cell(22, 6, "Advice No:", 0, 0)
+  pdf.set_font("Arial", "", 10)
+  pdf.cell(40, 6, f"{advice_no}", 0, 1)
+
+  pdf.set_font("Arial", "B", 10)
+  pdf.cell(22, 6, "Invoice No:", 0, 0)
+  pdf.set_font("Arial", "", 10)
+  pdf.cell(40, 6, f"{invoice_no}", 0, 1)
+
+  pdf.set_font("Arial", "B", 10)
+  pdf.cell(22, 6, "RM:", 0, 0)
+  pdf.set_font("Arial", "", 10)
+  pdf.cell(40, 6, f"{rm_officer}", 0, 1)
+
+  y_after_left_col = pdf.get_y()
+
+  pdf.set_xy(right_column_x, y_before)
+  pdf.set_font("Arial", "B", 10)
+  pdf.cell(12, 6, "Date:", 0, 0)
+  pdf.set_font("Arial", "", 10)
+  pdf.cell(45, 6, f"{formatted_date}", 0, 1)
+
+  pdf.set_xy(right_column_x, y_before + 6)
+  pdf.set_font("Arial", "B", 10)
+  pdf.cell(38, 6, "Delivery Challan No:", 0, 0)
+  pdf.set_font("Arial", "", 10)
+  pdf.cell(45, 6, f"{challan_no if challan_no else '-'}", 0, 1)
+
+  pdf.set_xy(right_column_x, y_before + 12)
+  pdf.set_font("Arial", "B", 10)
+  pdf.cell(26, 6, "Delivery Date:", 0, 0)
+  pdf.set_font("Arial", "", 10)
+  pdf.cell(45, 6, f"{formatted_delivery_date}", 0, 1)
+
+  max_y = max(y_after_left_col, pdf.get_y())
+  pdf.set_xy(12, max_y)
+  pdf.ln(4)
+
+  headers = [
+      "SL",
+      "Item In Wp",
+      "Item Description",
+      "Qty",
+      "Price/Wp",
+      "Unit Price",
+      "Total Price",
+  ]
+  widths = [10, 22, 54, 12, 22, 28, 38]
+  alignments = ["C", "C", "L", "C", "R", "R", "R"]
+
+  pdf.set_fill_color(242, 242, 242)
+  pdf.set_font("Arial", "B", 9)
+  for h, w, align in zip(headers, widths, alignments):
+    pdf.cell(w, 8, h, 1, 0, align, fill=True)
+  pdf.ln()
+
+  pdf.set_font("Arial", "", 9)
+  total_qty = 0
+  total_price = 0.0
+
+  for idx, item in enumerate(items_data, 1):
+    unit_price = item["wp"] * item["rate"]
+    row_total = item["qty"] * unit_price
+    total_qty += item["qty"]
+    total_price += row_total
+
+    row_data = [
+        str(idx),
+        f"{item['wp']:g}",
+        item["desc"],
+        str(item["qty"]),
+        f"{item['rate']:,.2f}",
+        f"{unit_price:,.2f}",
+        f"{row_total:,.2f}",
+    ]
+
+    for val, w, align in zip(row_data, widths, alignments):
+      pdf.cell(w, 8, val, 1, 0, align)
+    pdf.ln()
+
+  pdf.set_font("Arial", "B", 9)
+  pdf.cell(widths[0] + widths[1] + widths[2], 8, "TOTAL", 1, 0, "C", fill=True)
+  pdf.cell(widths[3], 8, str(total_qty), 1, 0, "C", fill=True)
+  pdf.cell(widths[4], 8, "", 1, 0, "C", fill=True)
+  pdf.cell(widths[5], 8, "", 1, 0, "C", fill=True)
+  pdf.cell(widths[6], 8, f"{total_price:,.2f}", 1, 1, "R", fill=True)
+
+  pdf.ln(8)
+
+  pdf.set_font("Arial", "B", 10)
+  pdf.cell(0, 6, f"Payment Mode: {payment_mode}", 0, 1)
+
+  pdf.ln(12)
+
+  y_sig = pdf.get_y()
+  pdf.line(12, y_sig, 62, y_sig)
+  pdf.line(138, y_sig, 198, y_sig)
+
+  pdf.set_font("Arial", "B", 10)
+  pdf.cell(50, 6, "Prepared By", 0, 0, "C")
+  pdf.cell(76, 6, "", 0, 0)
+  pdf.cell(60, 6, "Head of Sales & Marketing", 0, 1, "C")
+
+  pdf.ln(10)
+
+  y_app = pdf.get_y()
+  pdf.line(83, y_app + 8, 123, y_app + 8)
+  pdf.cell(0, 6, "Approved By:", 0, 1)
+
+  pdf.ln(15)
+
+  pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+  pdf.ln(2)
+  pdf.set_font("Arial", "B", 9)
+  pdf.cell(0, 5, "Note (If any):", 0, 1)
+  pdf.set_font("Arial", "", 9)
+  pdf.multi_cell(0, 5, f"1. {note}")
+
+  return bytes(pdf.output())
+
+
+# --- PERMANENT COUNTER INCREMENT & SALES STATEMENT CALLBACK ---
 def increment_counters_callback():
-    next_advice = advice_no + 1
-    next_invoice = invoice_no + 1
-    
-    # Save directly to Google Sheets via Apps Script
-    save_counters(next_advice, next_invoice)
-    
-    # Update local session state for current browser view
-    st.session_state.advice_number = next_advice
-    st.session_state.invoice_number = next_invoice
+  next_advice = advice_no + 1
+  next_invoice = invoice_no + 1
+
+  # Prepare simplified sales item list for Google Apps Script formulas
+  sales_items = []
+  for idx, item in enumerate(items_data, 1):
+    wp = float(item.get("wp", 0))
+    qty = int(item.get("qty", 0))
+    rate = float(item.get("rate", 0))
+
+    sales_items.append({
+        "s_no": idx,
+        "wp": wp,
+        "qty_ordered": qty,
+        "qty_delivered": qty,  # Defaults to delivered qty
+        "rate": rate,
+    })
+
+  sales_payload = {
+      "customer_name": customer_name,
+      "invoice_no": invoice_no,
+      "invoice_date": formatted_date,
+      "delivery_date": formatted_delivery_date,
+      "remarks": note,
+      "rm": rm_officer,
+      "items": sales_items,
+  }
+
+  # Save counters AND append entries to Sales_Statement tab with spreadsheet formulas
+  save_counters(next_advice, next_invoice, sales_payload)
+
+  # Update local session state for active view
+  st.session_state.advice_number = next_advice
+  st.session_state.invoice_number = next_invoice
+
 
 if len(items_data) == 0:
-    st.warning("⚠️ Please fill out at least one product row with a description.")
+  st.warning("⚠️ Please fill out at least one product row with a description.")
 else:
-    pdf_bytes = generate_pdf_file()
-    
-    safe_customer_name = customer_name.strip().replace(" ", "_") if customer_name else "Unknown_Customer"
-    dynamic_filename = f"DA_{safe_customer_name}_{formatted_date}.pdf"
-    
-    st.download_button(
-        label="⚡ Save Counters & Download PDF Instantly",
-        data=pdf_bytes,
-        file_name=dynamic_filename,
-        mime="application/pdf",
-        use_container_width=True,
-        on_click=increment_counters_callback
-    )
+  pdf_bytes = generate_pdf_file()
+
+  safe_customer_name = (
+      customer_name.strip().replace(" ", "_")
+      if customer_name
+      else "Unknown_Customer"
+  )
+  dynamic_filename = f"DA_{safe_customer_name}_{formatted_date}.pdf"
+
+  st.download_button(
+      label="⚡ Save Counters & Download PDF Instantly",
+      data=pdf_bytes,
+      file_name=dynamic_filename,
+      mime="application/pdf",
+      use_container_width=True,
+      on_click=increment_counters_callback,
+  )
